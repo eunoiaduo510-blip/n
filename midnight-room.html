@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Midnight Room</title>
+<style>
+  :root{
+    --sky-deep:#080b1f;
+    --sky-mid:#131a3d;
+    --sky-glow:#2a3466;
+    --star-warm:#f4d58d;
+    --star-cool:#c9d6ff;
+    --moon:#f6ecd9;
+    --mist:#8892b0;
+    --gradient-hue:220;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{
+    width:100%;height:100vh;
+    overflow:hidden;
+    cursor:crosshair;
+    font-family:'Georgia', 'Times New Roman', serif;
+    -webkit-tap-highlight-color:transparent;
+    touch-action:none;
+    user-select:none;
+    -webkit-user-select:none;
+  }
+  body{
+    background:hsl(220, 45%, 8%);
+    transition:background 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  body.stage-midnight{
+    background:linear-gradient(to bottom, hsl(220, 45%, 8%), hsl(220, 50%, 10%));
+  }
+  body.stage-latenight{
+    background:linear-gradient(to bottom, hsl(250, 40%, 15%), hsl(270, 35%, 18%));
+  }
+  body.stage-dawn{
+    background:linear-gradient(to bottom, hsl(280, 35%, 25%) 0%, hsl(320, 40%, 35%) 40%, hsl(20, 60%, 50%) 100%);
+  }
+  #sky{
+    position:fixed;inset:0;
+    transition:opacity 0.5s ease;
+  }
+  .sky-overlay{
+    position:fixed;inset:0;
+    pointer-events:none;
+    opacity:0;
+    transition:opacity 1s ease;
+    z-index:0;
+  }
+  #constellation-canvas{
+    position:fixed;inset:0;
+    pointer-events:none;
+    z-index:1;
+  }
+  .cloud{
+    position:absolute;
+    background:radial-gradient(ellipse at center, rgba(136,146,176,0.08), transparent 70%);
+    border-radius:50%;
+    pointer-events:none;
+    opacity:0.4;
+    filter:blur(30px);
+  }
+  @keyframes cloudDrift{
+    0%{transform:translateX(0);}
+    100%{transform:translateX(120vw);}
+  }
+  .bg-star{
+    position:absolute;border-radius:50%;
+    background:var(--star-cool);
+    opacity:.5;
+    animation:twinkle ease-in-out infinite;
+  }
+  @keyframes twinkle{
+    0%,100%{opacity:.15;}
+    50%{opacity:.8;}
+  }
+  .placed-star{
+    position:absolute;
+    width:6px;height:6px;
+    border-radius:50%;
+    background:var(--star-warm);
+    box-shadow:0 0 8px 2px var(--star-warm), 0 0 20px 6px rgba(244,213,141,0.25);
+    transform:translate(-50%,-50%) scale(0);
+    animation:bloom 1.6s cubic-bezier(.2,.8,.2,1) forwards, drift 8s ease-in-out infinite;
+    transition:opacity 3.5s ease-out, transform 3.5s ease-out, filter 3.5s ease-out;
+    pointer-events:none;
+    z-index:2;
+  }
+  .placed-star.fading{
+    opacity:0;
+    transform:translate(-50%,-50%) scale(0.2);
+    filter:brightness(0.3);
+  }
+  .particle{
+    position:absolute;
+    width:3px;height:3px;
+    border-radius:50%;
+    background:var(--star-warm);
+    box-shadow:0 0 4px 1px var(--star-warm);
+    pointer-events:none;
+    opacity:1;
+  }
+  @keyframes explode{
+    0%{
+      opacity:1;
+      transform:translate(-50%,-50%) scale(1);
+    }
+    100%{
+      opacity:0;
+      transform:translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0);
+    }
+  }
+  #message{
+    position:fixed;
+    top:50%;left:50%;
+    transform:translate(-50%,-50%);
+    color:var(--mist);
+    font-style:italic;
+    font-size:15px;
+    letter-spacing:.4px;
+    text-align:center;
+    opacity:0;
+    transition:opacity 3s ease;
+    pointer-events:none;
+    max-width:80%;
+    z-index:10;
+  }
+  #message.show{opacity:.55;}
+  @keyframes bloom{
+    0%{transform:translate(-50%,-50%) scale(0);opacity:0;}
+    40%{transform:translate(-50%,-50%) scale(1.4);opacity:1;}
+    100%{transform:translate(-50%,-50%) scale(1);opacity:.85;}
+  }
+  @keyframes drift{
+    0%,100%{filter:brightness(1);}
+    50%{filter:brightness(1.5);}
+  }
+  #moon{
+    position:fixed;
+    top:8%;right:10%;
+    width:64px;height:64px;
+    border-radius:50%;
+    background:radial-gradient(circle at 35% 35%, var(--moon), #d8c9a3 60%, transparent 75%);
+    box-shadow:0 0 30px 8px rgba(246,236,217,0.35);
+    cursor:pointer;
+    transition:transform .4s ease, box-shadow .6s ease, opacity 1s ease, top 1s ease, right 1s ease;
+    z-index:5;
+    touch-action:manipulation;
+  }
+  #moon.on{
+    box-shadow:0 0 50px 16px rgba(246,236,217,0.55);
+    transform:scale(1.08);
+  }
+  @media (max-width: 768px){
+    #moon{
+      width:56px;height:56px;
+      top:6%;right:6%;
+    }
+  }
+  #moon::after{
+    content:"";
+    position:absolute;inset:0;
+    border-radius:50%;
+    background:var(--sky-deep);
+    transform:translateX(14px);
+    opacity:.85;
+    transition:opacity 1s ease;
+  }
+  #echo-text{
+    position:fixed;
+    top:15%;
+    left:50%;
+    transform:translateX(-50%);
+    color:rgba(201,214,255,0.6);
+    font-size:12px;
+    letter-spacing:1.5px;
+    text-align:center;
+    opacity:0;
+    transition:opacity 1s ease;
+    pointer-events:none;
+    z-index:6;
+    font-style:italic;
+  }
+  #echo-text.show{opacity:1;}
+  .ig-link{
+    position:fixed;
+    top:20px;
+    left:20px;
+    width:32px;
+    height:32px;
+    opacity:0.4;
+    transition:opacity 0.3s ease, transform 0.3s ease;
+    z-index:20;
+    cursor:pointer;
+  }
+  .ig-link:hover{
+    opacity:0.8;
+    transform:scale(1.1);
+  }
+  .ig-link svg{
+    width:100%;
+    height:100%;
+    fill:var(--mist);
+  }
+  @media (max-width: 768px){
+    .ig-link{
+      width:28px;
+      height:28px;
+      top:15px;
+      left:15px;
+    }
+  }
+  .sun{
+    position:fixed;
+    top:15%;right:10%;
+    width:80px;height:80px;
+    border-radius:50%;
+    background:radial-gradient(circle at 40% 40%, #fff5e6, #ffb347 50%, #ff8c42 80%);
+    box-shadow:0 0 40px 15px rgba(255,179,71,0.6);
+    opacity:0;
+    transition:opacity 1.5s ease, top 1.5s ease;
+    pointer-events:none;
+    z-index:4;
+  }
+  @media (max-width: 768px){
+    .sun{
+      width:64px;height:64px;
+      right:6%;
+    }
+  }
+  .shooting-star{
+    position:absolute;
+    width:2px;height:2px;
+    background:white;
+    border-radius:50%;
+    box-shadow:0 0 6px 2px white;
+    opacity:0;
+    pointer-events:none;
+  }
+  @keyframes shoot{
+    0%{opacity:0;transform:translate(0,0);}
+    5%{opacity:1;}
+    90%{opacity:1;}
+    100%{opacity:0;transform:translate(var(--dx), var(--dy));}
+  }
+  #hint{
+    position:fixed;
+    bottom:6%;
+    left:0;right:0;
+    text-align:center;
+    color:var(--mist);
+    font-size:14px;
+    letter-spacing:.5px;
+    opacity:.7;
+    transition:opacity 2s ease;
+    pointer-events:none;
+    font-style:italic;
+    padding:0 20px;
+    z-index:10;
+  }
+  #hint.hide{opacity:0;}
+  @media (max-width: 768px){
+    #hint{
+      font-size:13px;
+      bottom:8%;
+    }
+    #message{
+      font-size:14px;
+      padding:0 30px;
+    }
+  }
+  .scroll-hint{
+    position:fixed;
+    bottom:3%;
+    left:50%;
+    transform:translateX(-50%);
+    color:rgba(201,214,255,0.6);
+    font-size:11px;
+    letter-spacing:1px;
+    text-align:center;
+    opacity:1;
+    transition:opacity 1s ease;
+    pointer-events:none;
+    z-index:10;
+    animation:bounce 2s ease-in-out infinite;
+  }
+  .scroll-hint.hide{opacity:0;}
+  @keyframes bounce{
+    0%,100%{transform:translateX(-50%) translateY(0);}
+    50%{transform:translateX(-50%) translateY(-8px);}
+  }
+  .stage-label{
+    position:fixed;
+    top:50%;
+    left:50%;
+    transform:translate(-50%,-50%);
+    color:rgba(201,214,255,0.4);
+    font-size:clamp(28px, 6vw, 56px);
+    font-weight:300;
+    letter-spacing:4px;
+    text-align:center;
+    opacity:0;
+    transition:opacity 1s ease;
+    pointer-events:none;
+    z-index:3;
+    text-transform:uppercase;
+  }
+  .stage-label.show{
+    opacity:1;
+    animation:labelPulse 1.5s ease-out;
+  }
+  @keyframes labelPulse{
+    0%{transform:translate(-50%,-50%) scale(0.9);}
+    50%{transform:translate(-50%,-50%) scale(1.05);}
+    100%{transform:translate(-50%,-50%) scale(1);}
+  }
+  .aurora{
+    position:fixed;
+    top:0;
+    left:0;
+    right:0;
+    height:50%;
+    background:linear-gradient(to bottom,
+      rgba(0,255,150,0) 0%,
+      rgba(0,255,150,0.08) 30%,
+      rgba(100,150,255,0.12) 60%,
+      rgba(200,100,255,0.08) 80%,
+      rgba(0,0,0,0) 100%
+    );
+    opacity:0;
+    filter:blur(40px);
+    pointer-events:none;
+    z-index:1;
+    transition:opacity 2s ease;
+    animation:auroraWave 15s ease-in-out infinite;
+  }
+  @keyframes auroraWave{
+    0%,100%{transform:translateX(-5%) scaleY(1);}
+    50%{transform:translateX(5%) scaleY(1.1);}
+  }
+</style>
+</head>
+<body>
+<a href="https://www.instagram.com/evarick1.1?stkn=Nm9rbnpnb2FweDMx" target="_blank" rel="noopener noreferrer" class="ig-link" title="@evarick1.1">
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+  </svg>
+</a>
+<div class="aurora"></div>
+<canvas id="constellation-canvas"></canvas>
+<div id="sky"></div>
+<div id="moon" title="echo your stars"></div>
+<div class="sun"></div>
+<div class="stage-label"></div>
+<div id="echo-text">echoing your stars..</div>
+<div id="hint">touch the sky to light the stars</div>
+<div class="scroll-hint">scroll ↓</div>
+<div id="message">despite everything.. it's still you</div>
+
+<script>
+const sky = document.getElementById('sky');
+const moon = document.getElementById('moon');
+const sun = document.querySelector('.sun');
+const hint = document.getElementById('hint');
+const scrollHint = document.querySelector('.scroll-hint');
+const stageLabel = document.querySelector('.stage-label');
+const aurora = document.querySelector('.aurora');
+const canvas = document.getElementById('constellation-canvas');
+const ctx = canvas.getContext('2d');
+const echoText = document.getElementById('echo-text');
+
+// setup canvas
+function resizeCanvas(){
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+// detect mobile
+const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+
+// snap scroll system
+let currentStageIndex = 0;
+const stageNames = ['midnight', 'latenight', 'dawn'];
+const stageData = {
+  midnight: { label: 'Midnight', moonOpacity: 1, moonAfterOpacity: 0.85, sunOpacity: 0, starsOpacity: 1, auroraOpacity: 0, moonTop: '8%', sunTop: '35%' },
+  latenight: { label: 'Late Night', moonOpacity: 0.5, moonAfterOpacity: 0.4, sunOpacity: 0, starsOpacity: 0.6, auroraOpacity: 0.7, moonTop: '3%', sunTop: '30%' },
+  dawn: { label: 'Dawn', moonOpacity: 0, moonAfterOpacity: 0, sunOpacity: 1, starsOpacity: 0.15, auroraOpacity: 0.25, moonTop: '-5%', sunTop: '12%' }
+};
+
+let isTransitioning = false;
+let touchStartY = 0;
+let touchStartX = 0;
+let touchMoved = false;
+
+function transitionToStage(index){
+  if(isTransitioning || index < 0 || index >= stageNames.length) return;
+  if(index === currentStageIndex) return;
+  
+  isTransitioning = true;
+  currentStageIndex = index;
+  const stageName = stageNames[index];
+  const stage = stageData[stageName];
+  
+  // update body class
+  document.body.className = `stage-${stageName}`;
+  
+  // hide scroll hint after first transition
+  if(index > 0){
+    scrollHint.classList.add('hide');
+  }
+  
+  // apply stage styles
+  moon.style.opacity = stage.moonOpacity;
+  moon.style.top = stage.moonTop;
+  
+  if(stage.moonOpacity === 0){
+    moon.style.pointerEvents = 'none';
+  } else {
+    moon.style.pointerEvents = 'auto';
+  }
+  
+  sun.style.opacity = stage.sunOpacity;
+  sun.style.top = stage.sunTop;
+  
+  sky.style.opacity = stage.starsOpacity;
+  canvas.style.opacity = stage.starsOpacity;
+  aurora.style.opacity = stage.auroraOpacity;
+  
+  setTimeout(()=>isTransitioning = false, 1000);
+}
+
+// wheel event for desktop
+let wheelTimeout;
+document.addEventListener('wheel', (e)=>{
+  if(isTransitioning) return;
+  
+  clearTimeout(wheelTimeout);
+  wheelTimeout = setTimeout(()=>{
+    if(e.deltaY > 30){
+      transitionToStage(currentStageIndex + 1);
+    } else if(e.deltaY < -30){
+      transitionToStage(currentStageIndex - 1);
+    }
+  }, 50);
+}, { passive: true });
+
+// keyboard navigation
+document.addEventListener('keydown', (e)=>{
+  if(isTransitioning) return;
+  
+  if(e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' '){
+    e.preventDefault();
+    transitionToStage(currentStageIndex + 1);
+  } else if(e.key === 'ArrowUp' || e.key === 'PageUp'){
+    e.preventDefault();
+    transitionToStage(currentStageIndex - 1);
+  }
+});
+
+// initialize
+document.body.className = 'stage-midnight';
+
+// clouds
+function createCloud(){
+  const cloud = document.createElement('div');
+  cloud.className = 'cloud';
+  const size = 200 + Math.random()*300;
+  cloud.style.width = size + 'px';
+  cloud.style.height = size*0.6 + 'px';
+  cloud.style.left = -size + 'px';
+  cloud.style.top = Math.random()*60 + '%';
+  const duration = 120 + Math.random()*80;
+  cloud.style.animation = `cloudDrift ${duration}s linear`;
+  sky.appendChild(cloud);
+  setTimeout(()=>cloud.remove(), duration*1000);
+}
+// kurangi jumlah awan di mobile
+const cloudCount = isMobile ? 2 : 3;
+for(let i=0; i<cloudCount; i++){
+  setTimeout(()=>{
+    createCloud();
+    setInterval(createCloud, (isMobile ? 50000 : 40000) + Math.random()*30000);
+  }, i*15000);
+}
+
+// background stars - kurangi di mobile
+const bgStarCount = isMobile ? 80 : 140;
+for(let i=0;i<bgStarCount;i++){
+  const s = document.createElement('div');
+  s.className='bg-star';
+  const size = Math.random()*2+0.5;
+  s.style.width=size+'px';
+  s.style.height=size+'px';
+  s.style.left=Math.random()*100+'%';
+  s.style.top=Math.random()*100+'%';
+  s.style.animationDuration=(2+Math.random()*4)+'s';
+  s.style.animationDelay=(Math.random()*4)+'s';
+  sky.appendChild(s);
+}
+
+setTimeout(()=>hint.classList.add('hide'), 5000);
+setTimeout(()=>scrollHint.classList.add('hide'), 6000);
+
+const message = document.getElementById('message');
+
+// monolog lines
+const monologLines = [
+  "Despite everything, it's still you.",
+  "The same person who wakes up every morning,",
+  "sometimes knowing exactly where to go,",
+  "and sometimes just moving because standing still feels stranger.",
+  "",
+  "You've changed more than you realize.",
+  "There were days when you thought you would remain the same forever,",
+  "but time has a quiet way of taking things from you.",
+  "Little by little.",
+  "A habit here.",
+  "A thought there.",
+  "A version of yourself you once thought would last forever.",
+  "",
+  "And you never really notice it happening.",
+  "Until one day,",
+  "you look back and realize",
+  "you don't remember when you became this person.",
+  "",
+  "Maybe growing up was never supposed to feel like becoming someone new.",
+  "Maybe it was simply learning how to carry everything you've been through",
+  "without letting it decide who you become.",
+  "",
+  "You've lost things.",
+  "You've gained things.",
+  "You've outgrown places you once called home.",
+  "You've stayed too long in places you knew you had already outgrown.",
+  "",
+  "You've met people who changed the way you see the world,",
+  "and people who made you question yourself.",
+  "Some stayed.",
+  "Some disappeared.",
+  "Some were only meant to exist in a certain chapter of your life.",
+  "",
+  "And eventually,",
+  "you learned that not everything needs an ending you understand.",
+  "Some things simply fade.",
+  "Some questions never get answered.",
+  "Some memories become quieter with time,",
+  "but never completely disappear.",
+  "",
+  "And maybe that's okay.",
+  "Not everything has to be fixed.",
+  "Not every scar needs a story.",
+  "Not every lonely night means you are alone.",
+  "",
+  "Sometimes,",
+  "you just need a little silence",
+  "to hear yourself again.",
+  "",
+  "So you keep going.",
+  "Not because you have everything figured out,",
+  "but because somehow,",
+  "even after all the confusion,",
+  "you are still here.",
+  "Still breathing.",
+  "Still thinking.",
+  "Still wondering.",
+  "Still looking at the same sky",
+  "from a completely different place in your life.",
+  "",
+  "There are still things you want.",
+  "Things you fear.",
+  "Things you haven't said.",
+  "Places you haven't seen.",
+  "Versions of yourself you haven't met yet.",
+  "",
+  "And maybe that is enough reason to keep walking.",
+  "You don't need to know exactly where the road ends.",
+  "You only need to take the next step.",
+  "Then another.",
+  "And another.",
+  "",
+  "Until one day,",
+  "you look back again",
+  "and realize that all those small steps",
+  "were quietly taking you somewhere.",
+  "Maybe somewhere better.",
+  "Maybe somewhere unexpected.",
+  "Maybe simply somewhere that feels like home.",
+  "",
+  "And when everything becomes quiet again,",
+  "when the world finally stops asking you to be something,",
+  "you might realize",
+  "that you were never supposed to become anyone else.",
+  "",
+  "Despite everything,",
+  "it's still you.",
+  "",
+  "And maybe,",
+  "that was always enough."
+];
+
+let currentLineIndex = 0;
+let isChangingLine = false;
+
+function showNextLine(){
+  if(isChangingLine) return;
+  isChangingLine = true;
+  
+  // fade out (3 seconds)
+  message.classList.remove('show');
+  
+  // tunggu fade out selesai sepenuhnya
+  setTimeout(()=>{
+    // update text
+    currentLineIndex = (currentLineIndex + 1) % monologLines.length;
+    message.textContent = monologLines[currentLineIndex];
+    
+    // tunggu sebentar sebelum fade in
+    setTimeout(()=>{
+      // fade in (3 seconds)
+      message.classList.add('show');
+      isChangingLine = false;
+    }, 500); // jeda 0.5 detik antara fade out dan fade in
+    
+  }, 3000); // tunggu fade out selesai
+}
+
+// start monolog
+setTimeout(()=>{
+  message.textContent = monologLines[0];
+  message.classList.add('show');
+}, 5000);
+
+// change line every 20 seconds + 6.5 seconds transition time = 26.5 seconds total cycle
+setInterval(showNextLine, 26500);
+
+// occasional shooting star
+function shootingStar(){
+  const s = document.createElement('div');
+  s.className='shooting-star';
+  const startX = Math.random()*70+10;
+  s.style.left=startX+'%';
+  s.style.top=(Math.random()*30)+'%';
+  const dx = 200+Math.random()*150;
+  const dy = 120+Math.random()*80;
+  s.style.setProperty('--dx', dx+'px');
+  s.style.setProperty('--dy', dy+'px');
+  s.style.animation='shoot 1.8s ease-in forwards';
+  sky.appendChild(s);
+  setTimeout(()=>s.remove(), 2000);
+  setTimeout(shootingStar, 6000+Math.random()*9000);
+}
+setTimeout(shootingStar, 4000);
+
+// ---- audio ----
+let actx;
+let ambientOn = false;
+let ambientNodes = null;
+
+// start ambient automatically after user interaction
+let ambientStarted = false;
+
+function getCtx(){
+  if(!actx) actx = new (window.AudioContext||window.webkitAudioContext)();
+  return actx;
+}
+
+const pentatonic = [261.6,293.7,329.6,392.0,440.0,523.3,587.3,659.3,784.0];
+
+function playChime(freq, pan){
+  const ctx = getCtx();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  const panner = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+  osc.type='sine';
+  osc.frequency.value=freq;
+  gain.gain.setValueAtTime(0, ctx.currentTime);
+  gain.gain.linearRampToValueAtTime(0.18, ctx.currentTime+0.03);
+  gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+2.2);
+  osc.connect(gain);
+  if(panner){
+    panner.pan.value = pan;
+    gain.connect(panner);
+    panner.connect(ctx.destination);
+  } else {
+    gain.connect(ctx.destination);
+  }
+  osc.start();
+  osc.stop(ctx.currentTime+2.3);
+}
+
+function makeNoiseBuffer(ctx){
+  const bufferSize = ctx.sampleRate*2;
+  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  let lastOut=0;
+  for(let i=0;i<bufferSize;i++){
+    const white = Math.random()*2-1;
+    data[i] = (lastOut + (0.02*white))/1.02;
+    lastOut = data[i];
+    data[i]*=3.5;
+  }
+  return buffer;
+}
+
+function startAmbient(){
+  const ctx = getCtx();
+  const master = ctx.createGain();
+  master.gain.setValueAtTime(0, ctx.currentTime);
+  master.gain.linearRampToValueAtTime(0.15, ctx.currentTime+2.5);
+  master.connect(ctx.destination);
+
+  const osc1 = ctx.createOscillator();
+  osc1.type='sine'; osc1.frequency.value=110;
+  const osc2 = ctx.createOscillator();
+  osc2.type='sine'; osc2.frequency.value=110*1.5;
+  const padGain = ctx.createGain();
+  padGain.gain.value=0.5;
+  osc1.connect(padGain); osc2.connect(padGain);
+  padGain.connect(master);
+
+  const lfo = ctx.createOscillator();
+  lfo.frequency.value=0.07;
+  const lfoGain = ctx.createGain();
+  lfoGain.gain.value=0.15;
+  lfo.connect(lfoGain);
+  lfoGain.connect(padGain.gain);
+
+  const noise = ctx.createBufferSource();
+  noise.buffer = makeNoiseBuffer(ctx);
+  noise.loop = true;
+  const noiseFilter = ctx.createBiquadFilter();
+  noiseFilter.type='lowpass';
+  noiseFilter.frequency.value=500;
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.value=0.25;
+  noise.connect(noiseFilter);
+  noiseFilter.connect(noiseGain);
+  noiseGain.connect(master);
+
+  const waveNoise = ctx.createBufferSource();
+  waveNoise.buffer = makeNoiseBuffer(ctx);
+  waveNoise.loop = true;
+  const waveFilter = ctx.createBiquadFilter();
+  waveFilter.type='bandpass';
+  waveFilter.frequency.value=1100;
+  waveFilter.Q.value=0.6;
+  const waveGain = ctx.createGain();
+  waveGain.gain.value=0.15;
+  waveNoise.connect(waveFilter);
+  waveFilter.connect(waveGain);
+  waveGain.connect(master);
+
+  const waveLFO = ctx.createOscillator();
+  waveLFO.frequency.value=0.12;
+  const waveLFOGain = ctx.createGain();
+  waveLFOGain.gain.value=0.13;
+  waveLFO.connect(waveLFOGain);
+  waveLFOGain.connect(waveGain.gain);
+
+  osc1.start(); osc2.start(); lfo.start(); noise.start();
+  waveNoise.start(); waveLFO.start();
+
+  ambientNodes = {master, osc1, osc2, lfo, noise, waveNoise, waveLFO};
+}
+
+function stopAmbient(){
+  if(!ambientNodes) return;
+  const ctx = getCtx();
+  const {master, osc1, osc2, lfo, noise, waveNoise, waveLFO} = ambientNodes;
+  master.gain.linearRampToValueAtTime(0, ctx.currentTime+1.5);
+  setTimeout(()=>{
+    osc1.stop(); osc2.stop(); lfo.stop(); noise.stop();
+    waveNoise.stop(); waveLFO.stop();
+  }, 1600);
+  ambientNodes = null;
+}
+
+// star click history for echo feature
+const starHistory = [];
+const HISTORY_DURATION = 30000; // 30 seconds
+
+// track star clicks
+function recordStarClick(x, y){
+  const timestamp = Date.now();
+  starHistory.push({ x, y, timestamp });
+  
+  // remove clicks older than 30 seconds
+  while(starHistory.length > 0 && (timestamp - starHistory[0].timestamp) > HISTORY_DURATION){
+    starHistory.shift();
+  }
+}
+
+// replay star clicks from last 30 seconds
+let isEchoing = false;
+
+function echoStars(){
+  if(isEchoing || starHistory.length === 0) return;
+  
+  isEchoing = true;
+  
+  // show echo text
+  echoText.classList.add('show');
+  setTimeout(()=>echoText.classList.remove('show'), 3000);
+  
+  // get clicks from last 30 seconds
+  const now = Date.now();
+  const recentClicks = starHistory.filter(click => (now - click.timestamp) <= HISTORY_DURATION);
+  
+  if(recentClicks.length === 0){
+    isEchoing = false;
+    return;
+  }
+  
+  // calculate time offsets relative to oldest click
+  const oldestTimestamp = recentClicks[0].timestamp;
+  const clicksWithDelay = recentClicks.map(click => ({
+    x: click.x,
+    y: click.y,
+    delay: click.timestamp - oldestTimestamp
+  }));
+  
+  // replay each click with original timing
+  clicksWithDelay.forEach(click => {
+    setTimeout(()=>{
+      createStarDirect(click.x, click.y);
+    }, click.delay);
+  });
+  
+  // reset echo state after replay completes
+  const longestDelay = clicksWithDelay[clicksWithDelay.length - 1].delay;
+  setTimeout(()=>{
+    isEchoing = false;
+  }, longestDelay + 1000);
+}
+
+moon.addEventListener('click', handleMoonClick);
+moon.addEventListener('touchstart', handleMoonClick);
+
+function handleMoonClick(e){
+  e.stopPropagation();
+  e.preventDefault();
+  echoStars();
+}
+
+function explodeStar(star){
+  const rect = star.getBoundingClientRect();
+  const centerX = rect.left + rect.width/2;
+  const centerY = rect.top + rect.height/2;
+  
+  // buat 8-12 partikel
+  const particleCount = 8 + Math.floor(Math.random()*5);
+  for(let i=0; i<particleCount; i++){
+    const particle = document.createElement('div');
+    particle.className = 'particle';
+    particle.style.left = centerX + 'px';
+    particle.style.top = centerY + 'px';
+    
+    // arah random dalam lingkaran
+    const angle = (Math.PI * 2 * i) / particleCount + (Math.random()-0.5)*0.5;
+    const distance = 20 + Math.random()*25;
+    const dx = Math.cos(angle) * distance;
+    const dy = Math.sin(angle) * distance;
+    
+    particle.style.setProperty('--dx', dx + 'px');
+    particle.style.setProperty('--dy', dy + 'px');
+    particle.style.animation = `explode ${0.6 + Math.random()*0.4}s ease-out forwards`;
+    
+    sky.appendChild(particle);
+    setTimeout(()=>particle.remove(), 1100);
+  }
+  
+  star.remove();
+}
+
+// constellation drawing
+function drawConstellations(){
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  const allStars = Array.from(sky.querySelectorAll('.placed-star'));
+  // ambil hanya 5 bintang terakhir untuk digambar garisnya
+  const stars = allStars.slice(-5);
+  
+  if(stars.length < 2) return; // butuh minimal 2 bintang
+  
+  const maxDistance = 150;
+  const maxConnectionsPerStar = 2;
+  
+  ctx.strokeStyle = 'rgba(201, 214, 255, 0.15)';
+  ctx.lineWidth = 1;
+  
+  // track berapa koneksi tiap bintang
+  const connectionCount = new Map();
+  stars.forEach(star => connectionCount.set(star, 0));
+  
+  for(let i=0; i<stars.length; i++){
+    const star1 = stars[i];
+    
+    // skip kalau sudah max koneksi
+    if(connectionCount.get(star1) >= maxConnectionsPerStar) continue;
+    
+    const rect1 = star1.getBoundingClientRect();
+    const x1 = rect1.left + rect1.width/2;
+    const y1 = rect1.top + rect1.height/2;
+    
+    // cari bintang terdekat untuk dikoneksi
+    const nearStars = [];
+    
+    for(let j=0; j<stars.length; j++){
+      if(i === j) continue;
+      
+      const star2 = stars[j];
+      
+      // skip kalau star2 juga sudah max koneksi
+      if(connectionCount.get(star2) >= maxConnectionsPerStar) continue;
+      
+      const rect2 = star2.getBoundingClientRect();
+      const x2 = rect2.left + rect2.width/2;
+      const y2 = rect2.top + rect2.height/2;
+      
+      const distance = Math.sqrt((x2-x1)**2 + (y2-y1)**2);
+      
+      if(distance < maxDistance){
+        nearStars.push({star: star2, distance, x: x2, y: y2});
+      }
+    }
+    
+    // urutkan berdasarkan jarak, ambil yang terdekat
+    nearStars.sort((a, b) => a.distance - b.distance);
+    
+    // gambar garis ke bintang terdekat (max sesuai sisa koneksi)
+    const availableConnections = maxConnectionsPerStar - connectionCount.get(star1);
+    const connectionsToMake = Math.min(availableConnections, nearStars.length);
+    
+    for(let k=0; k<connectionsToMake; k++){
+      const near = nearStars[k];
+      
+      // cek lagi apakah star target masih bisa terima koneksi
+      if(connectionCount.get(near.star) >= maxConnectionsPerStar) continue;
+      
+      const opacity = (1 - near.distance/maxDistance) * 0.3;
+      ctx.strokeStyle = `rgba(201, 214, 255, ${opacity})`;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(near.x, near.y);
+      ctx.stroke();
+      
+      // update counter
+      connectionCount.set(star1, connectionCount.get(star1) + 1);
+      connectionCount.set(near.star, connectionCount.get(near.star) + 1);
+      
+      // break kalau star1 sudah mencapai max
+      if(connectionCount.get(star1) >= maxConnectionsPerStar) break;
+    }
+  }
+}
+
+setInterval(drawConstellations, isMobile ? 150 : 100);
+
+// handle touch for both stage transition and star creation
+document.addEventListener('touchstart', (e)=>{
+  if(e.target === moon || moon.contains(e.target)) return;
+  
+  touchStartY = e.touches[0].clientY;
+  touchStartX = e.touches[0].clientX;
+  touchMoved = false;
+}, { passive: true });
+
+document.addEventListener('touchmove', (e)=>{
+  if(e.target === moon || moon.contains(e.target)) return;
+  touchMoved = true;
+}, { passive: true });
+
+document.addEventListener('touchend', (e)=>{
+  if(e.target === moon || moon.contains(e.target)) return;
+  
+  const touchEndY = e.changedTouches[0].clientY;
+  const touchEndX = e.changedTouches[0].clientX;
+  const swipeDistance = touchStartY - touchEndY;
+  const minSwipeDistance = 60;
+  
+  // if moved significantly vertically = stage transition
+  if(touchMoved && Math.abs(swipeDistance) > minSwipeDistance){
+    if(!isTransitioning){
+      if(swipeDistance > 0){
+        transitionToStage(currentStageIndex + 1);
+      } else {
+        transitionToStage(currentStageIndex - 1);
+      }
+    }
+  } 
+  // if tap (no move) = create star
+  else if(!touchMoved || Math.abs(swipeDistance) < 20){
+    handleStarCreation({
+      type: 'touch',
+      clientX: touchEndX,
+      clientY: touchEndY,
+      preventDefault: ()=>{}
+    });
+  }
+  
+  touchStartY = 0;
+  touchStartX = 0;
+  touchMoved = false;
+}, { passive: true });
+
+// prevent zoom on double tap
+let lastTap = 0;
+document.addEventListener('touchend', (e)=>{
+  if(e.target === moon || moon.contains(e.target)) return;
+  
+  const currentTime = new Date().getTime();
+  const tapLength = currentTime - lastTap;
+  if(tapLength < 300 && tapLength > 0){
+    e.preventDefault();
+  }
+  lastTap = currentTime;
+}, { passive: false });
+
+sky.addEventListener('click', handleStarCreation);
+
+// direct star creation (for echo replay)
+function createStarDirect(clientX, clientY){
+  const star = document.createElement('div');
+  star.className='placed-star';
+  star.style.left = clientX+'px';
+  star.style.top = clientY+'px';
+  sky.appendChild(star);
+
+  const idx = Math.floor((clientX/window.innerWidth)*pentatonic.length);
+  const freq = pentatonic[Math.min(idx, pentatonic.length-1)];
+  const pan = (clientX/window.innerWidth)*2-1;
+  playChime(freq, pan);
+
+  const stars = sky.querySelectorAll('.placed-star');
+  const maxStars = isMobile ? 40 : 60;
+  if(stars.length>maxStars){
+    explodeStar(stars[0]);
+  }
+
+  const lifespan = 4000+Math.random()*2500;
+  setTimeout(()=>{
+    explodeStar(star);
+  }, lifespan);
+}
+
+function handleStarCreation(e){
+  if(!e) return;
+  
+  // start ambient sound on first interaction
+  if(!ambientStarted){
+    startAmbient();
+    ambientStarted = true;
+    moon.classList.add('on');
+  }
+  
+  // ambil koordinat dari touch atau mouse
+  let clientX, clientY;
+  if(e.type === 'touch'){
+    // dari custom touch event
+    clientX = e.clientX;
+    clientY = e.clientY;
+  } else if(e.touches && e.touches[0]){
+    // dari touchstart asli
+    const touch = e.touches[0];
+    clientX = touch.clientX;
+    clientY = touch.clientY;
+  } else {
+    // dari click
+    clientX = e.clientX;
+    clientY = e.clientY;
+  }
+  
+  if(typeof clientX === 'undefined' || typeof clientY === 'undefined') return;
+  
+  hint.classList.add('hide');
+  
+  // record click for echo
+  recordStarClick(clientX, clientY);
+  
+  // create star
+  createStarDirect(clientX, clientY);
+}
+</script>
+</body>
+</html>
